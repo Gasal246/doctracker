@@ -1,0 +1,180 @@
+@import "tailwindcss";
+
+:root {
+  --background: #e9e4db;
+  --foreground: #221f1c;
+  --paper: #f4efe6;
+  --paper-strong: #fbf7f1;
+  --sketch-ink: #221f1c;
+  --sketch-muted: #4e4841;
+  --sketch-orange: #a66405;
+  --sketch-blue: #4d7190;
+  --sketch-red: #cc7373;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sketch-sans);
+  --font-mono: var(--font-sketch-accent);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    background: var(--background);
+    font-size: 80%;
+  }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top left, rgba(255, 255, 255, 0.45), transparent 28%),
+      radial-gradient(circle at bottom right, rgba(77, 113, 144, 0.11), transparent 26%),
+      linear-gradient(180deg, #e6e0d7 0%, #e9e4db 100%);
+    color: var(--foreground);
+    font-family: var(--font-sketch-sans), cursive;
+    letter-spacing: 0.02em;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .paper-grid {
+    background:
+      linear-gradient(rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.28)),
+      repeating-linear-gradient(
+        0deg,
+        transparent 0,
+        transparent 29px,
+        rgba(34, 31, 28, 0.035) 30px
+      );
+  }
+
+  .sketch-panel {
+    border: 4px solid var(--sketch-ink);
+    border-radius: 34px;
+    background: rgba(244, 239, 230, 0.92);
+    box-shadow: 4px 4px 0 rgba(34, 31, 28, 0.55);
+  }
+
+  .sketch-card {
+    border: 4px solid var(--sketch-ink);
+    border-radius: 30px;
+    background: rgba(255, 255, 255, 0.42);
+    box-shadow: 3px 3px 0 rgba(34, 31, 28, 0.55);
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .sketch-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 4px 5px 0 rgba(34, 31, 28, 0.58);
+  }
+
+  .sketch-input {
+    width: 100%;
+    border: 3px solid var(--sketch-ink);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.64);
+    padding: 0.72rem 0.95rem;
+    font-size: 1.65rem;
+    color: var(--sketch-ink);
+    outline: none;
+    box-shadow: 2px 2px 0 rgba(34, 31, 28, 0.45);
+  }
+
+  .sketch-input::placeholder {
+    color: rgba(78, 72, 65, 0.72);
+  }
+
+  .sketch-input:focus {
+    transform: translateY(-1px);
+    box-shadow: 3px 4px 0 rgba(34, 31, 28, 0.5);
+  }
+
+  .sketch-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 156px;
+    border: 4px solid var(--sketch-ink);
+    border-radius: 18px;
+    background: var(--sketch-blue);
+    color: #f9fbfd;
+    padding: 0.72rem 1.2rem;
+    font-size: 1.72rem;
+    line-height: 1;
+    box-shadow: 3px 3px 0 rgba(34, 31, 28, 0.58);
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease,
+      opacity 160ms ease;
+  }
+
+  .sketch-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 4px 5px 0 rgba(34, 31, 28, 0.6);
+  }
+
+  .sketch-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .sketch-button-active {
+    background: var(--sketch-orange);
+    color: #fffdf8;
+  }
+
+  .sketch-button-muted {
+    background: rgba(255, 255, 255, 0.58);
+    color: var(--sketch-ink);
+  }
+
+  .sketch-button-danger {
+    background: var(--sketch-red);
+    color: #fff8f8;
+  }
+
+  .sketch-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid var(--sketch-ink);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.55);
+    padding: 0.28rem 0.7rem;
+    font-size: 1.28rem;
+    line-height: 1;
+    color: var(--sketch-ink);
+    box-shadow: 1px 1px 0 rgba(34, 31, 28, 0.42);
+  }
+
+  .sketch-context-menu {
+    border: 3px solid var(--sketch-ink);
+    border-radius: 18px;
+    background: rgba(251, 247, 241, 0.96);
+    padding: 0.42rem;
+    box-shadow: 3px 3px 0 rgba(34, 31, 28, 0.58);
+  }
+
+  .sketch-modal-backdrop {
+    background: rgba(34, 31, 28, 0.32);
+    backdrop-filter: blur(10px);
+  }
+}
+
+body {
+  margin: 0;
+}

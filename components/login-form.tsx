@@ -41,7 +41,18 @@ export function LoginForm({ variant }: { variant: LoginVariant }) {
           body: JSON.stringify({ email, password }),
         },
       );
-      const data = (await response.json()) as { error?: string };
+      const raw = await response.text();
+      let data: { error?: string } = {};
+
+      if (raw) {
+        try {
+          data = JSON.parse(raw) as { error?: string };
+        } catch {
+          data = {
+            error: raw,
+          };
+        }
+      }
 
       if (!response.ok) {
         throw new Error(data.error || "Unable to sign in.");

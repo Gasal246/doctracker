@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Patrick_Hand, Short_Stack } from "next/font/google";
+
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import "./globals.css";
 
 const sketchSans = Patrick_Hand({
@@ -17,6 +19,16 @@ const sketchAccent = Short_Stack({
 export const metadata: Metadata = {
   title: "Doc Tracker",
   description: "Sketch-styled document expiry tracking application",
+  applicationName: "Doc Tracker",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Doc Tracker",
+  },
+  formatDetection: {
+    email: false,
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
@@ -29,7 +41,10 @@ export default function RootLayout({
       lang="en"
       className={`${sketchSans.variable} ${sketchAccent.variable} h-full`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <PwaInstallPrompt />
+        {children}
+      </body>
     </html>
   );
 }

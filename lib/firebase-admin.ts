@@ -1,4 +1,5 @@
 import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getMessaging } from "firebase-admin/messaging";
 import { getStorage } from "firebase-admin/storage";
 
 import { getEnv } from "@/lib/env";
@@ -64,4 +65,8 @@ export async function deleteDocumentFile(filePath: string) {
   const bucket = getBucket();
 
   await bucket.file(filePath).delete({ ignoreNotFound: true });
+}
+
+export function getFirebaseMessagingService() {
+  return getMessaging(getFirebaseApp());
 }

@@ -31,6 +31,18 @@ const documentSchema = new Schema(
       type: Date,
       required: true,
     },
+    reminderProcessedAt: {
+      type: Date,
+      default: null,
+    },
+    reminderEmailSentAt: {
+      type: Date,
+      default: null,
+    },
+    reminderPushSentAt: {
+      type: Date,
+      default: null,
+    },
     fileName: {
       type: String,
       default: "",
@@ -59,6 +71,7 @@ const documentSchema = new Schema(
 
 documentSchema.index({ userId: 1, expiryDate: 1 });
 documentSchema.index({ userId: 1, companyId: 1, categoryId: 1 });
+documentSchema.index({ reminderAt: 1, reminderProcessedAt: 1 });
 
 export type DocumentDocument = InferSchemaType<typeof documentSchema> & {
   _id: Types.ObjectId;

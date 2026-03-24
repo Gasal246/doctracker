@@ -22,6 +22,7 @@ import {
   SketchSelectMenu,
   StatusBanner,
 } from "@/components/sketch-ui";
+import { NotificationEnrollment } from "@/components/notification-enrollment";
 import type {
   CategoryDto,
   CompanyDto,
@@ -204,6 +205,8 @@ export function DashboardApp({
   const router = useRouter();
   const filterRef = useRef<HTMLDivElement | null>(null);
   const documentFileInputRef = useRef<HTMLInputElement | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const skipNextTapRef = useRef(false);
   const [currentUser, setCurrentUser] = useState(user);
   const [documents, setDocuments] = useState<DocumentDto[]>([]);
   const [companies, setCompanies] = useState<CompanyDto[]>([]);
@@ -243,8 +246,10 @@ export function DashboardApp({
     categoryId: "",
     companyId: "",
   });
+  const [showDueOnly, setShowDueOnly] = useState(false);
   const [documentFilePreviewUrl, setDocumentFilePreviewUrl] = useState("");
   const [selectedDocumentId, setSelectedDocumentId] = useState("");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     setSection(initialSection);
@@ -335,6 +340,32 @@ export function DashboardApp({
     void loadAll();
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function pollReminders() {
+      try {
+        await fetch("/api/reminders/poll", {
+          method: "POST",
+        });
+      } catch {
+        if (!cancelled) {
+          // Ignore transient polling errors in the UI.
+        }
+      }
+    }
+
+    void pollReminders();
+    const intervalId = window.setInterval(() => {
+      void pollReminders();
+    }, 60 * 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   function pushMessage(nextMessage: string, tone: "danger" | "primary") {
     setMessage(nextMessage);
     setStatusTone(tone);
@@ -342,6 +373,7 @@ export function DashboardApp({
 
   function moveToSection(nextSection: SectionKey) {
     setSection(nextSection);
+    setIsMobileSidebarOpen(false);
     startTransition(() => {
       router.push(`/dashboard/${nextSection}`);
     });
@@ -349,6 +381,7 @@ export function DashboardApp({
 
   async function handleSignOut(nextPath = "/login") {
     await fetch("/api/auth/logout", { method: "POST" });
+    setIsMobileSidebarOpen(false);
     startTransition(() => {
       router.push(nextPath);
       router.refresh();
@@ -393,6 +426,57 @@ export function DashboardApp({
     if (documentFileInputRef.current) {
       documentFileInputRef.current.value = "";
     }
+  }
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function openTouchContextMenu(
+    entity: "category" | "company" | "document",
+    id: string,
+    x: number,
+    y: number,
+  ) {
+    skipNextTapRef.current = true;
+    setContextMenu({
+      entity,
+      id,
+      x: Math.min(window.innerWidth - 200, Math.max(12, x)),
+      y: Math.min(window.innerHeight - 120, Math.max(12, y)),
+    });
+  }
+
+  function startLongPress(
+    event: React.TouchEvent<HTMLElement>,
+    entity: "category" | "company" | "document",
+    id: string,
+  ) {
+    clearLongPressTimer();
+    const touch = event.touches[0];
+
+    if (!touch) {
+      return;
+    }
+
+    const x = touch.clientX;
+    const y = touch.clientY;
+
+    longPressTimerRef.current = window.setTimeout(() => {
+      openTouchContextMenu(entity, id, x, y);
+    }, 550);
+  }
+
+  function handleCardTap(action?: () => void) {
+    if (skipNextTapRef.current) {
+      skipNextTapRef.current = false;
+      return;
+    }
+
+    action?.();
   }
 
   function openCompanyEditModal(company: CompanyDto) {
@@ -711,8 +795,9 @@ export function DashboardApp({
       !filters.companyId || document.companyId === filters.companyId;
     const matchesCategory =
       !filters.categoryId || document.categoryId === filters.categoryId;
+    const matchesDueFilter = !showDueOnly || isReminderDue(document.reminderAt);
 
-    return matchesSearch && matchesCompany && matchesCategory;
+    return matchesSearch && matchesCompany && matchesCategory && matchesDueFilter;
   });
 
   const visibleCompanies = companies.filter((company) => {
@@ -743,6 +828,14 @@ export function DashboardApp({
     .join(" / ");
   const selectedDocument =
     documents.find((document) => document.id === selectedDocumentId) || null;
+
+  function isReminderDue(reminderAt: string) {
+    return new Date(reminderAt).getTime() <= Date.now();
+  }
+
+  const dueDocumentsCount = documents.filter((document) =>
+    isReminderDue(document.reminderAt),
+  ).length;
 
   function renderDocumentsSection() {
     if (selectedDocument) {
@@ -836,10 +929,51 @@ export function DashboardApp({
       <>
         <SectionHeader
           action={
-            <SketchButton onClick={openDocumentCreateModal}>+ Add Document</SketchButton>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                aria-label="Toggle due reminders filter"
+                className={`relative flex h-14 w-14 items-center justify-center rounded-full border-[4px] border-[var(--sketch-ink)] shadow-[2px_2px_0_rgba(34,31,28,0.45)] transition ${
+                  showDueOnly
+                    ? "bg-[var(--sketch-red)] text-white"
+                    : "bg-[rgba(255,255,255,0.72)] text-[var(--sketch-ink)]"
+                }`}
+                onClick={() => setShowDueOnly((current) => !current)}
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M15 17H5l1.6-2.2a3 3 0 0 0 .6-1.8V10a5 5 0 1 1 10 0v2.9a3 3 0 0 0 .6 1.8L19 17h-4Zm-4 0a2 2 0 1 0 4 0"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                  />
+                </svg>
+
+                <span className="absolute -right-2 -top-2 flex min-h-8 min-w-8 items-center justify-center rounded-full border-[3px] border-[var(--sketch-ink)] bg-[var(--sketch-red)] px-1 text-base leading-none text-white shadow-[1px_1px_0_rgba(34,31,28,0.45)]">
+                  {dueDocumentsCount}
+                </span>
+              </button>
+
+              <SketchButton onClick={openDocumentCreateModal}>+ Add Document</SketchButton>
+            </div>
           }
           title="All Documents"
         />
+
+        {showDueOnly ? (
+          <div className="mb-5">
+            <StatusBanner
+              message="Showing only documents whose reminder time has already passed."
+              tone="danger"
+            />
+          </div>
+        ) : null}
 
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-center">
           <SketchInput
@@ -992,7 +1126,7 @@ export function DashboardApp({
             <SketchCard
               className="cursor-pointer space-y-5 p-5"
               key={document.id}
-              onClick={() => setSelectedDocumentId(document.id)}
+              onClick={() => handleCardTap(() => setSelectedDocumentId(document.id))}
               onContextMenu={(event) => {
                 event.preventDefault();
                 setContextMenu({
@@ -1002,8 +1136,32 @@ export function DashboardApp({
                   y: event.clientY,
                 });
               }}
+              onTouchEnd={clearLongPressTimer}
+              onTouchMove={clearLongPressTimer}
+              onTouchStart={(event) =>
+                startLongPress(event, "document", document.id)
+              }
             >
-              <div>
+              <div className="relative">
+                {isReminderDue(document.reminderAt) ? (
+                  <div className="absolute right-0 top-0 flex h-10 w-10 items-center justify-center rounded-full border-[3px] border-[var(--sketch-ink)] bg-[var(--sketch-red)] text-white shadow-[2px_2px_0_rgba(34,31,28,0.45)]">
+                    <svg
+                      aria-hidden="true"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M15 17H5l1.6-2.2a3 3 0 0 0 .6-1.8V10a5 5 0 1 1 10 0v2.9a3 3 0 0 0 .6 1.8L19 17h-4Zm-4 0a2 2 0 1 0 4 0"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                  </div>
+                ) : null}
+
                 <h3 className="text-3xl leading-none">{document.name}</h3>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <SketchBadge>{document.companyName}</SketchBadge>
@@ -1092,6 +1250,11 @@ export function DashboardApp({
                   y: event.clientY,
                 });
               }}
+              onTouchEnd={clearLongPressTimer}
+              onTouchMove={clearLongPressTimer}
+              onTouchStart={(event) =>
+                startLongPress(event, "company", company.id)
+              }
             >
               <div>
                 <h3 className="text-3xl leading-none">{company.name}</h3>
@@ -1158,6 +1321,11 @@ export function DashboardApp({
                   y: event.clientY,
                 });
               }}
+              onTouchEnd={clearLongPressTimer}
+              onTouchMove={clearLongPressTimer}
+              onTouchStart={(event) =>
+                startLongPress(event, "category", category.id)
+              }
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="text-2xl leading-none">{category.name}</p>
@@ -1321,6 +1489,53 @@ export function DashboardApp({
           ? `Delete category "${deleteDialog.name}" permanently?`
           : "";
 
+  const sidebarContent = (
+    <>
+      <div>
+        <div className="mb-6 flex items-center justify-between gap-4 border-b-[3px] border-[var(--sketch-ink)] pb-5">
+          <div className="flex items-center gap-4">
+            <BrandMark />
+            <div>
+              <p className="text-4xl leading-none">Doc Tracker</p>
+            </div>
+          </div>
+
+          <button
+            aria-label="Close sidebar"
+            className="flex h-11 w-11 items-center justify-center rounded-[16px] border-[3px] border-[var(--sketch-ink)] bg-[rgba(255,255,255,0.72)] text-3xl shadow-[2px_2px_0_rgba(34,31,28,0.45)] lg:hidden"
+            onClick={() => setIsMobileSidebarOpen(false)}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <nav className="space-y-3">
+          {sectionItems.map((item) => (
+            <SketchButton
+              className="w-full justify-center py-4 text-[2rem]"
+              key={item.key}
+              onClick={() => moveToSection(item.key)}
+              tone={section === item.key ? "active" : "muted"}
+            >
+              {item.label}
+            </SketchButton>
+          ))}
+        </nav>
+      </div>
+
+      <div className="mt-10 flex items-center gap-4">
+        <AvatarMark />
+        <div className="min-w-0">
+          <p className="truncate text-2xl leading-none">{currentUser.name}</p>
+          <p className="truncate text-xl text-[var(--sketch-muted)]">
+            {currentUser.email}
+          </p>
+        </div>
+      </div>
+    </>
+  );
+
   async function confirmDelete() {
     if (!deleteDialog) {
       return;
@@ -1344,42 +1559,36 @@ export function DashboardApp({
 
   return (
     <div className="min-h-screen px-4 py-4 md:px-5 md:py-5">
+      <div className="mx-auto mb-4 flex max-w-[1880px] items-center justify-between gap-4 lg:hidden">
+        <div className="sketch-panel paper-grid flex flex-1 items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <BrandMark />
+            <p className="text-3xl leading-none">Doc Tracker</p>
+          </div>
+
+          <button
+            aria-label="Open sidebar"
+            className="flex h-11 w-11 items-center justify-center rounded-[16px] border-[3px] border-[var(--sketch-ink)] bg-[rgba(255,255,255,0.72)] shadow-[2px_2px_0_rgba(34,31,28,0.45)]"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            type="button"
+          >
+            <span className="flex flex-col gap-1.5">
+              <span className="block h-[3px] w-5 rounded-full bg-[var(--sketch-ink)]" />
+              <span className="block h-[3px] w-5 rounded-full bg-[var(--sketch-ink)]" />
+              <span className="block h-[3px] w-5 rounded-full bg-[var(--sketch-ink)]" />
+            </span>
+          </button>
+        </div>
+      </div>
+
       <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1880px] flex-col gap-4 lg:flex-row">
-        <aside className="sketch-panel paper-grid flex w-full flex-col justify-between p-4 lg:w-[320px] lg:p-6">
-          <div>
-            <div className="mb-6 flex items-center gap-4 border-b-[3px] border-[var(--sketch-ink)] pb-5">
-              <BrandMark />
-              <div>
-                <p className="text-4xl leading-none">Doc Tracker</p>
-              </div>
-            </div>
-
-            <nav className="space-y-3">
-              {sectionItems.map((item) => (
-                <SketchButton
-                  className="w-full justify-center py-4 text-[2rem]"
-                  key={item.key}
-                  onClick={() => moveToSection(item.key)}
-                  tone={section === item.key ? "active" : "muted"}
-                >
-                  {item.label}
-                </SketchButton>
-              ))}
-            </nav>
-          </div>
-
-          <div className="mt-10 flex items-center gap-4">
-            <AvatarMark />
-            <div className="min-w-0">
-              <p className="truncate text-2xl leading-none">{currentUser.name}</p>
-              <p className="truncate text-xl text-[var(--sketch-muted)]">
-                {currentUser.email}
-              </p>
-            </div>
-          </div>
+        <aside className="sketch-panel paper-grid hidden w-full flex-col justify-between p-4 lg:flex lg:w-[320px] lg:p-6">
+          {sidebarContent}
         </aside>
 
         <main className="sketch-panel paper-grid flex-1 p-5 md:p-8">
+          <NotificationEnrollment />
+
           {message ? (
             <div className="mb-6">
               <StatusBanner message={message} tone={statusTone} />
@@ -1398,6 +1607,20 @@ export function DashboardApp({
           )}
         </main>
       </div>
+
+      {isMobileSidebarOpen ? (
+        <div
+          className="fixed inset-0 z-40 bg-[rgba(34,31,28,0.32)] backdrop-blur-[3px] lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        >
+          <aside
+            className="sketch-panel paper-grid absolute right-4 top-4 flex h-[calc(100vh-2rem)] w-[min(320px,calc(100vw-2rem))] flex-col justify-between p-4"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {sidebarContent}
+          </aside>
+        </div>
+      ) : null}
 
       {contextMenu ? (
         <div

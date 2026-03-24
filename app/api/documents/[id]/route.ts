@@ -69,11 +69,18 @@ export async function PATCH(request: Request, { params }: RouteProps) {
       document.fileUrl = fileData.fileUrl;
     }
 
+    const previousReminderAt = document.reminderAt.getTime();
     document.name = name;
     document.companyId = new Types.ObjectId(companyId);
     document.categoryId = new Types.ObjectId(categoryId);
     document.expiryDate = new Date(expiryDate);
     document.reminderAt = new Date(reminderAt);
+
+    if (previousReminderAt !== document.reminderAt.getTime()) {
+      document.reminderProcessedAt = null;
+      document.reminderEmailSentAt = null;
+      document.reminderPushSentAt = null;
+    }
 
     await document.save();
 

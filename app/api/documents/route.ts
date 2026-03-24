@@ -77,6 +77,9 @@ export async function POST(request: Request) {
       categoryId,
       expiryDate: new Date(expiryDate),
       reminderAt: new Date(reminderAt),
+      reminderProcessedAt: null,
+      reminderEmailSentAt: null,
+      reminderPushSentAt: null,
       ...fileData,
     });
 

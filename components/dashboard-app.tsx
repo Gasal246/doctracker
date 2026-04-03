@@ -23,6 +23,10 @@ import {
   StatusBanner,
 } from "@/components/sketch-ui";
 import { NotificationEnrollment } from "@/components/notification-enrollment";
+import {
+  MAX_DOCUMENT_FILE_SIZE_BYTES,
+  getDocumentFileSizeError,
+} from "@/lib/document-upload";
 import type {
   CategoryDto,
   CompanyDto,
@@ -138,6 +142,16 @@ function toDateTimeInputValue(dateString: string) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+function toReminderSubmitValue(dateTimeLocalValue: string) {
+  const date = new Date(dateTimeLocalValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return dateTimeLocalValue;
+  }
+
+  return date.toISOString();
+}
+
 function formatReminderLabel(reminderAt: string) {
   const now = new Date();
   const target = new Date(reminderAt);
@@ -177,6 +191,10 @@ function formatFileSize(size: number) {
   }
 
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getDocumentUploadLimitMessage() {
+  return `Upload files up to ${formatFileSize(MAX_DOCUMENT_FILE_SIZE_BYTES)} to avoid the production upload limit.`;
 }
 
 async function readJson<T>(response: Response) {
@@ -248,6 +266,7 @@ export function DashboardApp({
   });
   const [showDueOnly, setShowDueOnly] = useState(false);
   const [documentFilePreviewUrl, setDocumentFilePreviewUrl] = useState("");
+  const [documentDialogError, setDocumentDialogError] = useState("");
   const [selectedDocumentId, setSelectedDocumentId] = useState("");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -399,6 +418,7 @@ export function DashboardApp({
   function openDocumentCreateModal() {
     setDocumentForm(emptyDocumentForm);
     setDocumentFilePreviewUrl("");
+    setDocumentDialogError("");
     setIsDocumentModalOpen(true);
   }
 
@@ -413,7 +433,13 @@ export function DashboardApp({
       file: null,
     });
     setDocumentFilePreviewUrl("");
+    setDocumentDialogError("");
     setIsDocumentModalOpen(true);
+  }
+
+  function closeDocumentModal() {
+    setDocumentDialogError("");
+    setIsDocumentModalOpen(false);
   }
 
   function clearSelectedDocumentFile() {
@@ -422,6 +448,7 @@ export function DashboardApp({
       file: null,
     }));
     setDocumentFilePreviewUrl("");
+    setDocumentDialogError("");
 
     if (documentFileInputRef.current) {
       documentFileInputRef.current.value = "";
@@ -496,17 +523,46 @@ export function DashboardApp({
     setIsCategoryModalOpen(true);
   }
 
+  function handleDocumentFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const nextFile = event.target.files?.[0] || null;
+
+      if (nextFile) {
+        const fileError = getDocumentFileSizeError(nextFile);
+
+        if (fileError) {
+          event.target.value = "";
+          setDocumentDialogError(fileError);
+          return;
+        }
+      }
+
+    setDocumentDialogError("");
+    setDocumentForm((current) => ({
+      ...current,
+      file: nextFile,
+    }));
+  }
+
   async function handleDocumentSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusyAction("document");
+    setDocumentDialogError("");
 
     try {
+      if (documentForm.file) {
+        const fileError = getDocumentFileSizeError(documentForm.file);
+
+        if (fileError) {
+          throw new Error(fileError);
+        }
+      }
+
       const formData = new FormData();
       formData.set("name", documentForm.name);
       formData.set("companyId", documentForm.companyId);
       formData.set("categoryId", documentForm.categoryId);
       formData.set("expiryDate", documentForm.expiryDate);
-      formData.set("reminderAt", documentForm.reminderAt);
+      formData.set("reminderAt", toReminderSubmitValue(documentForm.reminderAt));
 
       if (documentForm.file) {
         formData.set("file", documentForm.file);
@@ -525,7 +581,11 @@ export function DashboardApp({
       );
 
       if (!response.ok || !data.document) {
-        throw new Error(data.error || "Unable to save document.");
+        throw new Error(
+          response.status === 413
+            ? getDocumentUploadLimitMessage()
+            : data.error || "Unable to save document.",
+        );
       }
 
       setDocuments((current) =>
@@ -533,16 +593,15 @@ export function DashboardApp({
           ? current.map((item) => (item.id === data.document!.id ? data.document! : item))
           : [data.document!, ...current],
       );
-      setIsDocumentModalOpen(false);
+      closeDocumentModal();
       setDocumentForm(emptyDocumentForm);
       pushMessage(
         isEditing ? "Document updated successfully." : "Document added successfully.",
         "primary",
       );
     } catch (error) {
-      pushMessage(
+      setDocumentDialogError(
         error instanceof Error ? error.message : "Unable to save document.",
-        "danger",
       );
     } finally {
       setBusyAction("");
@@ -1690,10 +1749,16 @@ export function DashboardApp({
       {isDocumentModalOpen ? (
         <ModalShell
           closeOnBackdrop={false}
-          onClose={() => setIsDocumentModalOpen(false)}
+          onClose={closeDocumentModal}
           title={documentForm.id ? "Edit Document" : "Add Document"}
         >
           <form className="grid gap-4 md:grid-cols-2" onSubmit={handleDocumentSubmit}>
+            {documentDialogError ? (
+              <div className="md:col-span-2">
+                <StatusBanner message={documentDialogError} tone="danger" />
+              </div>
+            ) : null}
+
             <div className="space-y-2 md:col-span-2">
               <label className="text-2xl" htmlFor="document-name">
                 Document Name
@@ -1794,12 +1859,7 @@ export function DashboardApp({
               <SketchInput
                 ref={documentFileInputRef}
                 id="document-file"
-                onChange={(event) =>
-                  setDocumentForm((current) => ({
-                    ...current,
-                    file: event.target.files?.[0] || null,
-                  }))
-                }
+                onChange={handleDocumentFileChange}
                 type="file"
               />
 
@@ -1851,8 +1911,9 @@ export function DashboardApp({
                     : "Add Document"}
               </SketchButton>
               <SketchButton
-                onClick={() => setIsDocumentModalOpen(false)}
+                onClick={closeDocumentModal}
                 tone="muted"
+                type="button"
               >
                 Cancel
               </SketchButton>

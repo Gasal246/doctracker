@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 
 import { getCurrentUser } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
+import { validateDocumentFile } from "@/lib/document-upload";
 import { deleteDocumentFile, uploadDocumentFile } from "@/lib/firebase-admin";
 import { errorResponse, getStringValue } from "@/lib/http";
 import { CategoryModel } from "@/lib/models/Category";
@@ -41,9 +42,14 @@ export async function PATCH(request: Request, { params }: RouteProps) {
     const expiryDate = getStringValue(formData, "expiryDate");
     const reminderAt = getStringValue(formData, "reminderAt");
     const file = formData.get("file");
+    const fileError = validateDocumentFile(file);
 
     if (!name || !companyId || !categoryId || !expiryDate || !reminderAt) {
       return errorResponse("All document fields are required.");
+    }
+
+    if (fileError) {
+      return errorResponse(fileError, 413);
     }
 
     if (!Types.ObjectId.isValid(companyId) || !Types.ObjectId.isValid(categoryId)) {

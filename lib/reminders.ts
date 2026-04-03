@@ -59,6 +59,8 @@ export async function runReminderDispatch() {
     const companyEmail = company?.email?.trim() || "";
     const expiryDateText = formatDate(document.expiryDate);
     const reminderAtText = formatDateTime(document.reminderAt);
+    const notificationTitle = `Reminder: ${document.name}`;
+    const notificationBody = `${company?.name || "Company"} • expires ${expiryDateText}`;
     let emailSent = false;
     let pushSent = false;
 
@@ -83,11 +85,15 @@ export async function runReminderDispatch() {
       const response = await messaging.sendEachForMulticast({
         tokens,
         notification: {
-          title: `Reminder: ${document.name}`,
-          body: `${company?.name || "Company"} • expires ${expiryDateText}`,
+          title: notificationTitle,
+          body: notificationBody,
         },
         data: {
           documentId: document._id.toString(),
+          title: notificationTitle,
+          body: notificationBody,
+          badge: `${baseUrl}/favicon-32x32.png`,
+          icon: `${baseUrl}/android-chrome-192x192.png`,
           url: `${baseUrl}/dashboard/documents`,
         },
         webpush: {
@@ -95,6 +101,8 @@ export async function runReminderDispatch() {
             link: `${baseUrl}/dashboard/documents`,
           },
           notification: {
+            title: notificationTitle,
+            body: notificationBody,
             badge: `${baseUrl}/favicon-32x32.png`,
             icon: `${baseUrl}/android-chrome-192x192.png`,
           },

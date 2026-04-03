@@ -19,8 +19,12 @@ export function NotificationEnrollment() {
     messaging: Awaited<ReturnType<typeof getFirebaseMessagingClient>>,
     registration: ServiceWorkerRegistration,
   ) {
-    if (!messaging || !vapidKey) {
-      return;
+    if (!messaging) {
+      throw new Error("Firebase messaging is not available on this device.");
+    }
+
+    if (!vapidKey) {
+      throw new Error("Push notifications are not configured correctly.");
     }
 
     const token = await getToken(messaging, {
@@ -29,10 +33,10 @@ export function NotificationEnrollment() {
     });
 
     if (!token) {
-      return;
+      throw new Error("Unable to create a push notification token.");
     }
 
-    await fetch("/api/notifications/token", {
+    const response = await fetch("/api/notifications/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -43,6 +47,10 @@ export function NotificationEnrollment() {
         userAgent: navigator.userAgent,
       }),
     });
+
+    if (!response.ok) {
+      throw new Error("Unable to save this device for push reminders.");
+    }
   }
 
   useEffect(() => {
@@ -67,18 +75,30 @@ export function NotificationEnrollment() {
         return;
       }
 
-      const registration = await navigator.serviceWorker.register("/sw.js");
+      try {
+        const registration = await navigator.serviceWorker.register("/sw.js");
 
-      if (Notification.permission === "granted") {
-        await saveToken(messaging, registration);
-        setStatus("enabled");
-      } else if (Notification.permission === "denied") {
-        setStatus("denied");
+        if (Notification.permission === "granted") {
+          await saveToken(messaging, registration);
+          setStatus("enabled");
+        } else if (Notification.permission === "denied") {
+          setStatus("denied");
+        }
+      } catch (error) {
+        setStatus("idle");
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Unable to enable push notifications on this device.",
+        );
       }
 
       unsubscribe = onMessage(messaging, (payload) => {
-        const title = payload.notification?.title || "Doc Tracker Reminder";
-        const body = payload.notification?.body || "";
+        const title =
+          payload.notification?.title ||
+          payload.data?.title ||
+          "Doc Tracker Reminder";
+        const body = payload.notification?.body || payload.data?.body || "";
 
         if (Notification.permission === "granted") {
           new Notification(title, {

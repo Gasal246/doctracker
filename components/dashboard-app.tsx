@@ -23,10 +23,6 @@ import {
   StatusBanner,
 } from "@/components/sketch-ui";
 import { NotificationEnrollment } from "@/components/notification-enrollment";
-import {
-  MAX_DOCUMENT_FILE_SIZE_BYTES,
-  getDocumentFileSizeError,
-} from "@/lib/document-upload";
 import type {
   CategoryDto,
   CompanyDto,
@@ -191,10 +187,6 @@ function formatFileSize(size: number) {
   }
 
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function getDocumentUploadLimitMessage() {
-  return `Upload files up to ${formatFileSize(MAX_DOCUMENT_FILE_SIZE_BYTES)} to avoid the production upload limit.`;
 }
 
 async function readJson<T>(response: Response) {
@@ -525,17 +517,6 @@ export function DashboardApp({
 
   function handleDocumentFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const nextFile = event.target.files?.[0] || null;
-
-      if (nextFile) {
-        const fileError = getDocumentFileSizeError(nextFile);
-
-        if (fileError) {
-          event.target.value = "";
-          setDocumentDialogError(fileError);
-          return;
-        }
-      }
-
     setDocumentDialogError("");
     setDocumentForm((current) => ({
       ...current,
@@ -549,14 +530,6 @@ export function DashboardApp({
     setDocumentDialogError("");
 
     try {
-      if (documentForm.file) {
-        const fileError = getDocumentFileSizeError(documentForm.file);
-
-        if (fileError) {
-          throw new Error(fileError);
-        }
-      }
-
       const formData = new FormData();
       formData.set("name", documentForm.name);
       formData.set("companyId", documentForm.companyId);
@@ -583,7 +556,7 @@ export function DashboardApp({
       if (!response.ok || !data.document) {
         throw new Error(
           response.status === 413
-            ? getDocumentUploadLimitMessage()
+            ? "Upload failed because the server rejected the file size."
             : data.error || "Unable to save document.",
         );
       }
